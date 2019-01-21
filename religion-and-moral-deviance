@@ -1,0 +1,242 @@
+---
+title: "Communication Study"
+author: "Daniel Yi"
+date: "September 25, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Organizing Data
+```{r}
+library(readr)
+library(lavaan)
+library(psych)
+library(car)
+library(semTools)
+
+cs.ds <- read_csv("~/Research Study/Studies/Religion and Morality Study/Data/cs.ds.csv")
+
+# Remove those with suspicion code < 2
+cs.ds <- cs.ds[cs.ds$susp_code <= 3 | is.na(cs.ds$susp_code) , ] # Remove 36, n=270
+
+# Remove those who didn't do task correctly
+cs.ds <- cs.ds[cs.ds$Inst.tot >= 3 | is.na(cs.ds$Inst.tot) , ] # Remove 0, n=270
+cs.ds <- cs.ds[cs.ds$Cont.tot >= 6 | is.na(cs.ds$Cont.tot) , ] # Remove 2, n=268
+
+# Check to see factor level for task condition
+cs.ds$task <- factor(cs.ds$task)
+contrasts(cs.ds$task)
+cs.ds$taskInst <- ifelse(cs.ds$task == 'Inst', 1, 0)
+
+# Factor communication condition
+cs.ds$cond <- factor(cs.ds$cond)
+
+# Recode 3s to 2s in BiG item
+cs.ds$big[cs.ds$big == 3] <- 2
+# Re-arrange so that 0=No belief and 1=Belief
+cs.ds$big <- ifelse(cs.ds$big == 2, 0, 1)
+
+# Reverse Political Orientation
+cs.ds$pol_or <- 8 - cs.ds$pol_or
+
+# Convenience Variables
+careItems <- c('mfq4', 'mfq5', 'mfq8', 'mfq17', 'mfq18', 'mfq19')
+fairItems <- c('mfq6', 'mfq12', 'mfq13', 'mfq21', 'mfq26', 'mfq29')
+groupItems <- c('mfq2', 'mfq10', 'mfq23', 'mfq24', 'mfq25')
+authItems <- c('mfq3', 'mfq11', 'mfq14', 'mfq20', 'mfq22', 'mfq27')
+pureItems <- c('mfq1', 'mfq7', 'mfq9', 'mfq15', 'mfq16', 'mfq28')
+
+RFItems <- paste0('rf',1:12)
+RFRevItems <- paste0('rf',c(2,4,7,9,10,12))
+cs.ds[,paste0('rf',c(2,4,7,9,10,12),'r')] <- cs.ds[,RFRevItems]
+cs.ds[RFRevItems] <- 10 - cs.ds[RFRevItems]
+
+QuestItems <- paste0('q',1:12)
+  rQuestitems <- paste0("q", 6:7)
+  cs.ds[,paste0("q", 6:7, "r")] <- cs.ds[, rQuestitems]
+  cs.ds[rQuestitems] <- 10 - cs.ds[rQuestitems]
+InItems <- c('ie2', 'ie4', 'ie7', 'ie8', 'ie10', 'ie13', 'ie14', 'ie15', 'ie18', 'ie19')
+ExItems <- c('ie1', 'ie3', 'ie5', 'ie6', 'ie9', 'ie11', 'ie12', 'ie16', 'ie17', 'ie20')
+
+# Scale
+cs.ds[, careItems] <- scale(cs.ds[, careItems])
+cs.ds[, fairItems] <- scale(cs.ds[, fairItems])
+cs.ds[, groupItems] <- scale(cs.ds[, groupItems])
+cs.ds[, authItems] <- scale(cs.ds[, authItems])
+cs.ds[, pureItems] <- scale(cs.ds[, pureItems])
+
+cs.ds[,QuestItems] <- scale(cs.ds[,QuestItems])
+cs.ds[,InItems] <- scale(cs.ds[,InItems])
+cs.ds[,ExItems] <- scale(cs.ds[,ExItems])
+
+cs.ds[,RFItems] <- scale(cs.ds[,RFItems])
+
+cs.ds$rel_if <- scale(cs.ds$rel_if)
+cs.ds$pray <- scale(cs.ds$pray)
+cs.ds$relserv <- scale(cs.ds$relserv)
+cs.ds$relint <- scale(cs.ds$relint)
+
+# Means
+cs.ds$careMeans <- rowMeans(cs.ds[, careItems], na.rm = TRUE)
+cs.ds$fairMeans <- rowMeans(cs.ds[, fairItems], na.rm = TRUE)
+cs.ds$groupMeans <- rowMeans(cs.ds[, groupItems], na.rm = TRUE)
+cs.ds$authMeans <- rowMeans(cs.ds[, authItems], na.rm = TRUE)
+cs.ds$pureMeans <- rowMeans(cs.ds[, pureItems], na.rm = TRUE)
+
+cs.ds$RFMeans <- rowMeans(cs.ds[,RFItems],na.rm = TRUE)
+
+cs.ds$QuestMeans <- rowMeans(cs.ds[,QuestItems],na.rm = TRUE)
+cs.ds$InMeans <- rowMeans(cs.ds[,InItems],na.rm = TRUE)
+cs.ds$ExMeans <- rowMeans(cs.ds[,ExItems],na.rm = TRUE)
+```
+# Demographics
+```{r}
+# Sex: 1-M; 2-F
+table(cs.ds$sex)
+mean(cs.ds$age, na.rm = TRUE) 
+
+# Race/ethnicity  
+table(cs.ds$race)        ## 1-AA; 2-A; 3-H; 4-NA; 5-C; 6-Other
+
+# Belief in God
+table(cs.ds$big)         ## 1-Yes; 2-No; 3-Uncertain
+
+# Social economic status
+table(cs.ds$ses)         ## 1-Upper; 2-Upper/mid; 3-Mid; 4-Low/mid; 5-Low
+
+# Family income
+table(cs.ds$income)    
+
+# Religiosity
+  ## Religious affiliation
+  table(cs.ds$relaff)      ## 1-P; 2-C; 3-B; 4-H; 5-M; 6-None; 7-Ath; 8-Ag; 9-Other
+  ## Identity fusion
+  table(cs.ds$rel_if)      ## 1 (No Overlap) - 5 (Complete Overlap)
+  ## Prayer 
+  table(cs.ds$pray)        ## 1-Never; 2-few/yr; 3-few/mo; 4-few/wk; 5-1/day; 6-2+/day
+  ## Religious service
+  table(cs.ds$relserv)     ## 1-Never; 2-few/yr; 3-several/yr; 4-few/month; 5-1/wk; 6-2+/wk
+  ## Religious interest
+  table(cs.ds$relint)      ## 1 Not at all -- 9 Extremely Interested
+
+# Political Ideology
+table(cs.ds$pol_or)
+  ## Foreign policy
+  table(cs.ds$pol_for)     ## 1 Liberal -- 7 Conservative
+  ## Economic policy
+  table(cs.ds$pol_econ) 
+  ## Social policy
+  table(cs.ds$pol_soc)  
+  ## Religious policy
+  table(cs.ds$pol_rel)
+```
+# Testing correlations between religiosity and moral foundations
+```{r}
+mod <- '
+care =~ mfq4 + mfq5 + mfq8 + mfq17 + mfq18 + mfq19
+fair =~ mfq6 + mfq12 + mfq13 + mfq21 + mfq26 + mfq29
+#  ind =~ mfq4 + mfq5 + mfq8 + mfq17 + mfq18 + mfq19 + mfq6 + mfq12 + mfq13 + mfq21 + mfq26 + mfq29
+group =~ mfq2 + mfq10 + mfq23 + mfq24 + mfq25
+auth =~ mfq3 + mfq11 + mfq14 + mfq20 + mfq22 + mfq27
+pure =~ mfq1 + mfq7 + mfq9 + mfq15 + mfq16 + mfq28
+#  bind =~ mfq2 + mfq10 + mfq23 + mfq24 + mfq25 + mfq3 + mfq11 + mfq14 + mfq20 + mfq22 + mfq27 + mfq1 + mfq7 + mfq9 + mfq15 + mfq16 + mfq28
+
+q =~ q1 + q2 + q3 + q4 + q5 + q6 + q7 + q8 + q9 + q10 + q11 + q12
+intr =~ ie2 + ie4 + ie7 + ie8 + ie10 + ie13 + ie14 + ie15 + ie18 + ie19
+extr =~ ie1 + ie3 + ie5 + ie6 + ie9 + ie11 + ie12 + ie16 + ie17 + ie20
+
+rf =~ rf1 + rf2 + rf3 + rf4 + rf5 + rf6 + rf7 + rf8 + rf9 + rf10 + rf11 + rf12
+
+BiG =~ big
+ident =~ rel_if
+prayer =~ pray
+attend =~ relserv
+interest =~ relint
+
+pol =~ pol_or
+'
+fit <- sem(mod, cs.ds, mimic = "Mplus", meanstructure = TRUE, missing = "fiml", std.lv = T)
+summary(fit, standardized = TRUE, fit.measure = TRUE)
+```
+# Testing effects of condition on moral foundations
+## SEM Analysis
+```{r}
+mod <- '
+#care =~ mfq4 + mfq5 + mfq8 + mfq17 + mfq18 + mfq19
+#fair =~ mfq6 + mfq12 + mfq13 + mfq21 + mfq26 + mfq29
+#group =~ mfq2 + mfq10 + mfq23 + mfq24 + mfq25
+#auth =~ mfq3 + mfq11 + mfq14 + mfq20 + mfq22 + mfq27
+#pure =~ mfq1 + mfq7 + mfq9 + mfq15 + mfq16 + mfq28
+  ind =~ mfq4 + mfq5 + mfq8 + mfq17 + mfq18 + mfq19 + mfq6 + mfq12 + mfq13 + mfq21 + mfq26 + mfq29
+  bind =~ mfq2 + mfq10 + mfq23 + mfq24 + mfq25 + mfq3 + mfq11 + mfq14 + mfq20 + mfq22 + mfq27 + mfq1 + mfq7 + mfq9 + mfq15 + mfq16 + mfq28
+
+#care ~ taskInst + pol_or + big + taskInst:pol_or + taskInst:big
+#fair ~ taskInst + pol_or + big + taskInst:pol_or + taskInst:big
+#group ~ taskInst + pol_or + big + taskInst:pol_or + taskInst:big
+#auth ~ taskInst + pol_or + big + taskInst:pol_or + taskInst:big
+#pure ~ taskInst + pol_or + big + taskInst:pol_or + taskInst:big
+  ind ~ taskInst + pol_or + big + taskInst:pol_or + taskInst:big
+  bind ~ taskInst + pol_or + big + taskInst:pol_or + taskInst:big
+'
+fit <- sem(mod, cs.ds, mimic = "Mplus", meanstructure = TRUE, missing = "fiml", std.lv = T)
+summary(fit, standardized = TRUE, fit.measure = TRUE)
+```
+# Alphas
+```{r}
+care.mod <- '
+care =~ mfq4 + mfq5 + mfq8 + mfq17 + mfq18 + mfq19
+'
+care.fit <- sem(care.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(care.fit)
+
+fair.mod <- '
+fair =~ mfq6 + mfq12 + mfq13 + mfq21 + mfq26 + mfq29
+'
+fair.fit <- sem(fair.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(fair.fit)
+
+group.mod <- '
+group =~ mfq2 + mfq10 + mfq23 + mfq24 + mfq25
+'
+group.fit <- sem(group.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(group.fit)
+
+auth.mod <- '
+auth =~ mfq3 + mfq11 + mfq14 + mfq20 + mfq22 + mfq27
+'
+auth.fit <- sem(auth.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(auth.fit)
+
+pure.mod <- '
+pure =~ mfq1 + mfq7 + mfq9 + mfq15 + mfq16 + mfq28
+'
+pure.fit <- sem(pure.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(pure.fit)
+
+q.mod <- '
+q =~ q1 + q2 + q3 + q4 + q5 + q6 + q7 + q8 + q9 + q10 + q11 + q12
+'
+q.fit <- sem(q.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(q.fit)
+
+intr.mod <- '
+intr =~ ie2 + ie4 + ie7 + ie8 + ie10 + ie13 + ie14 + ie15 + ie18 + ie19
+'
+intr.fit <- sem(intr.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(intr.fit)
+
+extr.mod <- '
+extr =~ ie1 + ie3 + ie5 + ie6 + ie9 + ie11 + ie12 + ie16 + ie17 + ie20
+'
+extr.fit <- sem(extr.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(extr.fit)
+
+rf.mod <- '
+rf =~ rf1 + rf2 + rf3 + rf4 + rf5 + rf6 + rf7 + rf8 + rf9 + rf10 + rf11 + rf12
+'
+rf.fit <- sem(rf.mod, cs.ds, mimic = "Mplus", meanstructure = T, std.lv = T, missing = "fiml")
+reliability(rf.fit)
+```
